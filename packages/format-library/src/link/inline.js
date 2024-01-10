@@ -260,6 +260,7 @@ function InlineLinkUI( {
 			shift
 		>
 			<LinkControl
+				showInitialSuggestions={ true }
 				key={ forceRemountKey }
 				value={ linkValue }
 				onChange={ onChangeLink }
