@@ -53,7 +53,7 @@ function useGenericPreviewBlock( block, type ) {
  */
 export default function useStylesForBlocks( { clientId, onSwitch } ) {
 	const selector = ( select ) => {
-		const { getBlock } = select( blockEditorStore );
+		const { getBlock, getSettings } = select( blockEditorStore );
 		const block = getBlock( clientId );
 
 		if ( ! block ) {
@@ -61,11 +61,27 @@ export default function useStylesForBlocks( { clientId, onSwitch } ) {
 		}
 		const blockType = getBlockType( block.name );
 		const { getBlockStyles } = select( blocksStore );
+		const styles = getBlockStyles( block.name );
+
+		// Add theme.json styles for each block style if available.
+		// These will be used to customize the block style control
+		// For example, by displaying color swatches.
+		const variations =
+			getSettings().__experimentalStyles?.blocks?.[ block.name ]
+				?.variations ?? {};
+
+		if ( variations ) {
+			styles?.forEach( ( style, index ) => {
+				if ( variations[ style.name ] ) {
+					styles[ index ].styles = variations[ style.name ];
+				}
+			} );
+		}
 
 		return {
 			block,
 			blockType,
-			styles: getBlockStyles( block.name ),
+			styles,
 			className: block.attributes.className || '',
 		};
 	};
