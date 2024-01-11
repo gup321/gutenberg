@@ -707,6 +707,10 @@ _Related_
 
 Private @wordpress/block-editor APIs.
 
+### QuickInserter
+
+Undocumented declaration.
+
 ### ReusableBlocksRenameHint
 
 Undocumented declaration.
