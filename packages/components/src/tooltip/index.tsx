@@ -112,7 +112,7 @@ function UnconnectedTooltip(
 			};
 		return isOnlyChild
 			? cloneElement( children, {
-					...removeExtraPropsAddedByContext( clonedProps, 'Tooltip' ),
+					...clonedProps,
 					// Merge incoming classname with existing classname.
 					className: classNames(
 						children.props.className,
