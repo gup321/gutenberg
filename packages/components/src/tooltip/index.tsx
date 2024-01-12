@@ -3,6 +3,7 @@
  */
 // eslint-disable-next-line no-restricted-imports
 import * as Ariakit from '@ariakit/react';
+import classNames from 'classnames';
 
 /**
  * WordPress dependencies
@@ -23,6 +24,7 @@ import {
 	ContextSystemProvider,
 } from '../context';
 import type { WordPressComponentProps } from '../context';
+import { removeExtraPropsAddedByContext } from '../context/remove-extra-context-props';
 
 /**
  * Time over anchor to wait before showing tooltip
@@ -96,9 +98,24 @@ function UnconnectedTooltip(
 	} );
 
 	if ( isNestedInTooltip ) {
+		// Avoid passing certain props added by the useContextSystem hook when
+		// cloning children, as they are not intended for this scenario.
+		const clonedProps = removeExtraPropsAddedByContext(
+			restProps,
+			'Tooltip'
+		);
 		return isOnlyChild
 			? cloneElement( children, {
-					...restProps,
+					...removeExtraPropsAddedByContext( clonedProps, 'Tooltip' ),
+					// Merge incoming classname with existing classname.
+					className: classNames(
+						children.props.className,
+						clonedProps.className
+					),
+					style: {
+						...children.props.style,
+						...clonedProps.style,
+					},
 					ref,
 			  } )
 			: children;
