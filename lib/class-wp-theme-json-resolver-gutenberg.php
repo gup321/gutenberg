@@ -373,9 +373,37 @@ class WP_Theme_JSON_Resolver_Gutenberg {
 		$with_theme_supports = new WP_Theme_JSON_Gutenberg( $theme_support_data );
 
 		if ( $options['with_block_style_variations'] ) {
+			// Absorb block style variations from the block styles registry.
 			$block_style_variations_data = WP_Theme_JSON_Gutenberg::get_from_block_styles_registry();
 			$with_block_style_variations = new WP_Theme_JSON_Gutenberg( $block_style_variations_data );
 			$with_theme_supports->merge( $with_block_style_variations );
+
+			// Resolve referenced block style variations.
+			// Shared block style variations are stored under `styles.blocks.variations`
+			// Each block style variation can define an array of block types that can leverage it.
+			$theme_json_data = static::$theme->get_raw_data();
+			if ( isset( $theme_json_data['styles']['blocks']['variations'] ) ) {
+				$variations_data = array();
+				foreach ( $theme_json_data['styles']['blocks']['variations'] as $variation_name => $variation ) {
+					$subscribed_blocks = $variation['block_types'] ?? array();
+					$variation_data    = $variation;
+
+					foreach ( $subscribed_blocks as $block_name ) {
+						$path = array( $block_name, 'variations', $variation_name );
+						_wp_array_set( $variations_data, $path, $variation_data );
+					}
+				}
+
+				$shared_variations_data = array(
+					'version' => WP_Theme_JSON_Gutenberg::LATEST_SCHEMA,
+					'styles'  => array(
+						'blocks' => $variations_data,
+					),
+				);
+
+				$with_shared_variations = new WP_Theme_JSON_Gutenberg( $shared_variations_data );
+				$with_theme_supports->merge( $with_shared_variations );
+			}
 		}
 
 		$with_theme_supports->merge( static::$theme );
