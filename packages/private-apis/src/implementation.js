@@ -27,7 +27,6 @@ const CORE_MODULES_USING_PRIVATE_APIS = [
 	'@wordpress/format-library',
 	'@wordpress/patterns',
 	'@wordpress/reusable-blocks',
-	'@wordpress/rich-text',
 	'@wordpress/router',
 	'@wordpress/dataviews',
 ];
