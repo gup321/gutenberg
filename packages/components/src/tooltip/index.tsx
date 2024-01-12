@@ -104,6 +104,12 @@ function UnconnectedTooltip(
 			restProps,
 			'Tooltip'
 		);
+		const chainEvent =
+			( eventName: keyof typeof clonedProps ) =>
+			( ...args: unknown[] ): void => {
+				children.props[ eventName ]?.( ...args );
+				clonedProps[ eventName ]?.( ...args );
+			};
 		return isOnlyChild
 			? cloneElement( children, {
 					...removeExtraPropsAddedByContext( clonedProps, 'Tooltip' ),
@@ -112,10 +118,16 @@ function UnconnectedTooltip(
 						children.props.className,
 						clonedProps.className
 					),
+					// Merge incoming inline styles with existing styles.
 					style: {
 						...children.props.style,
 						...clonedProps.style,
 					},
+					// Chain event listeners by calling both the existing and the
+					// incoming callback.
+					onClick: chainEvent( 'onClick' ),
+					onMouseEnter: chainEvent( 'onMouseEnter' ),
+					onBlur: chainEvent( 'onBlur' ),
 					ref,
 			  } )
 			: children;
