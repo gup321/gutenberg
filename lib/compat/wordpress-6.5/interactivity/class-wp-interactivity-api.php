@@ -26,17 +26,16 @@ class WP_Interactivity_API {
 	private $initial_state = array();
 
 	public function initial_state( $store_namespace, $initial_state = null ) {
+		if ( ! isset( $this->initial_state[ $store_namespace ] ) ) {
+			$this->initial_state[ $store_namespace ] = array();
+		}
 		if ( is_array( $initial_state ) ) {
 			$this->initial_state[ $store_namespace ] = array_replace_recursive(
-				$this->get_initial_state( $store_namespace ),
+				$this->initial_state[ $store_namespace ],
 				$initial_state
 			);
 		}
-		return isset( $this->initial_state[ $store_namespace ] ) ? $this->initial_state[ $store_namespace ] : array();
-	}
-
-	public function add_hooks() {
-		add_action( 'wp_footer', array( $this, 'print_initial_state' ), 8 );
+		return $this->initial_state[ $store_namespace ];
 	}
 
 	public function print_initial_state() {
@@ -49,6 +48,10 @@ class WP_Interactivity_API {
 				)
 			);
 		}
+	}
+
+	public function add_hooks() {
+		add_action( 'wp_footer', array( $this, 'print_initial_state' ), 8 );
 	}
 
 	public function process_directives( $html ) {
