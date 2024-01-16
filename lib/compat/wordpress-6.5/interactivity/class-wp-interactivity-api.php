@@ -61,7 +61,7 @@ class WP_Interactivity_API {
 		$context_stack   = array();
 		$unbalanced      = false;
 
-		$directive_processor_prefixes          = array_keys( self::$directives_processors );
+		$directive_processor_prefixes          = array_keys( self::$directive_processors );
 		$directive_processor_prefixes_reversed = array_reverse( $directive_processor_prefixes );
 
 		while ( $p->next_tag( array( 'tag_closers' => 'visit' ) ) && false === $unbalanced ) {
@@ -101,7 +101,7 @@ class WP_Interactivity_API {
 					// Extracts the directive prefix to see if there is a server directive
 					// processor registered for that directive.
 					list( $directive_prefix ) = $this->extract_directive_prefix_and_suffix( $attribute_name );
-					if ( array_key_exists( $directive_prefix, $this->directive_processors ) ) {
+					if ( array_key_exists( $directive_prefix, self::$directive_processors ) ) {
 						$directives_prefixes[] = $directive_prefix;
 					}
 				}
@@ -125,7 +125,7 @@ class WP_Interactivity_API {
 
 			foreach ( $directives_prefixes as $directive_prefix ) {
 				call_user_func_array(
-					array( $this, self::$directives_processors[ $directive_prefix ] ),
+					array( $this, self::$directive_processors[ $directive_prefix ] ),
 					array( $p, &$context_stack, &$namespace_stack )
 				);
 			}
@@ -136,24 +136,22 @@ class WP_Interactivity_API {
 		return $unbalanced ? $html : $p->get_updated_html();
 	}
 
-	private function evaluate( $reference, $ns, array $context = array() ) {
-		// Extract the namespace from the reference (if present).
-		list( $ns, $path ) = WP_Directive_Processor::parse_attribute_value( $reference, $ns );
+	private function evaluate( $directive_value, $default_namespace, &$context_stack = array() ) {
+		// Extract the namespace from the directive attribute value.
+		list( $ns, $path ) = $this->parse_directive_value( $directive_value, $default_namespace );
 
 		$store = array(
-			'state'   => WP_Interactivity_Initial_State::get_state( $ns ),
-			'context' => $context[ $ns ] ?? array(),
+			'state'   => $this->initial_state[ $ns ],
+			'context' => end( $context_stack ),
 		);
 
-		/*
-		* Checks first if the directive path is preceded by a negator operator (!),
-		* indicating that the value obtained from the Interactivity Store (or the
-		* passed context) using the subsequent path should be negated.
-		*/
+		// Checks first if the reference path is preceded by a negator operator (!),
+		// indicating that the value obtained should be negated.
 		$should_negate_value = '!' === $path[0];
 		$path                = $should_negate_value ? substr( $path, 1 ) : $path;
-		$path_segments       = explode( '.', $path );
-		$current             = $store;
+
+		$path_segments = explode( '.', $path );
+		$current       = $store;
 		foreach ( $path_segments as $p ) {
 			if ( isset( $current[ $p ] ) ) {
 				$current = $current[ $p ];
@@ -162,14 +160,12 @@ class WP_Interactivity_API {
 			}
 		}
 
-		/*
-		* Checks if $current is an anonymous function or an arrow function, and if
-		* so, call it passing the store. Other types of callables are ignored on
-		* purpose, as arbitrary strings or arrays could be wrongly evaluated as
-		* "callables".
-		*
-		* E.g., "file" is an string and a "callable" (the "file" function exists).
-		*/
+		// Checks if $current is an anonymous function or an arrow function, and if
+		// so, call it passing the store. Other types of callables are ignored on
+		// purpose, as arbitrary strings or arrays could be wrongly evaluated as
+		// "callables".
+		//
+		// E.g., "file" is an string and a "callable" (the "file" function exists).
 		if ( $current instanceof Closure ) {
 			/*
 			 * TODO: Figure out a way to implement derived state without having to
@@ -195,11 +191,11 @@ class WP_Interactivity_API {
 	 *     'data-wp-bind--src'     => array( 'data-wp-bind', 'src' )
 	 *     'data-wp-foo--and--bar' => array( 'data-wp-foo', 'and--bar' )
 	 *
-	 * @param string $directive The directive attribute.
+	 * @param string $directive_name The directive attribute name.
 	 * @return array The array with the prefix and suffix.
 	 */
-	private function extract_directive_prefix_and_suffix( $directive ) {
-		return explode( '--', $directive, 2 );
+	private function extract_directive_prefix_and_suffix( $directive_name ) {
+		return explode( '--', $directive_name, 2 );
 	}
 
 	/**
@@ -212,17 +208,16 @@ class WP_Interactivity_API {
 	 *
 	 * Examples:
 	 *
-	 *     ( 'actions.foo', 'myPlugin' )                         => array( 'myPlugin', 'actions', 'foo' )
-	 *     ( 'state.foo.bar', 'myPlugin' )                       => array( 'myPlugin', 'state', 'foo', 'bar' )
-	 *     ( 'otherPlugin::actions.foo', 'myPlugin' )            => array( 'otherPlugin', 'actions', 'foo' )
-	 *     ( '{ "isOpen": false }', 'myPlugin' )                 => array( 'myPlugin', array( 'isOpen' => false ) )
-	 *     ( 'otherPlugin::{ "isOpen": false }', 'otherPlugin' ) => array( 'myPlugin', array( 'isOpen' => false ) )
+	 *     ( 'actions.foo', 'myPlugin' )                      => array( 'myPlugin', 'actions.foo' )
+	 *     ( 'otherPlugin::actions.foo', 'myPlugin' )         => array( 'otherPlugin', 'actions.foo' )
+	 *     ( '{ "isOpen": false }', 'myPlugin' )              => array( 'myPlugin', array( 'isOpen' => false ) )
+	 *     ( 'otherPlugin::{ "isOpen": false }', 'myPlugin' ) => array( 'otherPlugin', array( 'isOpen' => false ) )
 	 *
 	 * @param string $value             The directive attribute value.
 	 * @param string $default_namespace The default namespace that will be used if no explicit namespace is found on the value.
 	 * @return array The array containing either the JSON or the reference path.
 	 */
-	public static function parse_directive_value( $value, $default_namespace = null ) {
+	private function parse_directive_value( $value, $default_namespace = null ) {
 		$matches       = array();
 		$has_namespace = preg_match( '/^([\w\-_\/]+)::(.+)$/', $value, $matches );
 
@@ -243,5 +238,24 @@ class WP_Interactivity_API {
 		}
 
 		return array( $default_namespace, $value );
+	}
+
+	private function data_wp_bind_processor( $p, &$context_stack, &$namespace_stack ) {
+		if ( $p->is_tag_closer() ) {
+			return;
+		}
+
+		$prefixed_attributes = $p->get_attribute_names_with_prefix( 'data-wp-bind--' );
+
+		foreach ( $prefixed_attributes as $attribute ) {
+			list( , $bound_attr ) = $this->extract_directive_prefix_and_suffix( $attribute );
+			if ( empty( $bound_attr ) ) {
+				continue;
+			}
+
+			$reference = $p->get_attribute( $attribute );
+			$value     = $this->evaluate( $reference, $ns, $context_stack );
+			$p->set_attribute( $bound_attr, $value );
+		}
 	}
 }
