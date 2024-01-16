@@ -3,13 +3,12 @@
  */
 // eslint-disable-next-line no-restricted-imports
 import * as Ariakit from '@ariakit/react';
-import classNames from 'classnames';
 
 /**
  * WordPress dependencies
  */
 import { useInstanceId } from '@wordpress/compose';
-import { Children, cloneElement } from '@wordpress/element';
+import { Children } from '@wordpress/element';
 import deprecated from '@wordpress/deprecated';
 
 /**
@@ -104,33 +103,11 @@ function UnconnectedTooltip(
 			restProps,
 			'Tooltip'
 		);
-		const chainEvent =
-			( eventName: keyof typeof clonedProps ) =>
-			( ...args: unknown[] ): void => {
-				children.props[ eventName ]?.( ...args );
-				clonedProps[ eventName ]?.( ...args );
-			};
-		return isOnlyChild
-			? cloneElement( children, {
-					...clonedProps,
-					// Merge incoming classname with existing classname.
-					className: classNames(
-						children.props.className,
-						clonedProps.className
-					),
-					// Merge incoming inline styles with existing styles.
-					style: {
-						...children.props.style,
-						...clonedProps.style,
-					},
-					// Chain event listeners by calling both the existing and the
-					// incoming callback.
-					onClick: chainEvent( 'onClick' ),
-					onMouseEnter: chainEvent( 'onMouseEnter' ),
-					onBlur: chainEvent( 'onBlur' ),
-					ref,
-			  } )
-			: children;
+		return isOnlyChild ? (
+			<Ariakit.Role { ...clonedProps } render={ children } />
+		) : (
+			children
+		);
 	}
 
 	return (
