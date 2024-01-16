@@ -104,6 +104,8 @@ require __DIR__ . '/compat/wordpress-6.4/kses.php';
 require __DIR__ . '/compat/wordpress-6.5/block-patterns.php';
 require __DIR__ . '/compat/wordpress-6.5/class-wp-navigation-block-renderer.php';
 require __DIR__ . '/compat/wordpress-6.5/kses.php';
+require __DIR__ . '/compat/wordpress-6.5/interactivity/class-wp-interactivity-api.php';
+require __DIR__ . '/compat/wordpress-6.5/interactivity/class-wp-interactivity-api-directives-processor.php';
 
 // Experimental features.
 require __DIR__ . '/experimental/block-editor-settings-mobile.php';
@@ -117,18 +119,18 @@ if ( gutenberg_is_experiment_enabled( 'gutenberg-no-tinymce' ) ) {
 	require __DIR__ . '/experimental/disable-tinymce.php';
 }
 
-require __DIR__ . '/experimental/interactivity-api/class-wp-interactivity-initial-state.php';
-require __DIR__ . '/experimental/interactivity-api/initial-state.php';
-require __DIR__ . '/experimental/interactivity-api/modules.php';
-require __DIR__ . '/experimental/interactivity-api/class-wp-directive-processor.php';
-require __DIR__ . '/experimental/interactivity-api/class-wp-directive-context.php';
-require __DIR__ . '/experimental/interactivity-api/directive-processing.php';
-require __DIR__ . '/experimental/interactivity-api/directives/wp-bind.php';
-require __DIR__ . '/experimental/interactivity-api/directives/wp-context.php';
-require __DIR__ . '/experimental/interactivity-api/directives/wp-class.php';
-require __DIR__ . '/experimental/interactivity-api/directives/wp-style.php';
-require __DIR__ . '/experimental/interactivity-api/directives/wp-text.php';
-require __DIR__ . '/experimental/interactivity-api/directives/wp-interactive.php';
+// require __DIR__ . '/experimental/interactivity-api/class-wp-interactivity-initial-state.php';
+// require __DIR__ . '/experimental/interactivity-api/initial-state.php';
+// require __DIR__ . '/experimental/interactivity-api/modules.php';
+// require __DIR__ . '/experimental/interactivity-api/class-wp-directive-processor.php';
+// require __DIR__ . '/experimental/interactivity-api/class-wp-directive-context.php';
+// require __DIR__ . '/experimental/interactivity-api/directive-processing.php';
+// require __DIR__ . '/experimental/interactivity-api/directives/wp-bind.php';
+// require __DIR__ . '/experimental/interactivity-api/directives/wp-context.php';
+// require __DIR__ . '/experimental/interactivity-api/directives/wp-class.php';
+// require __DIR__ . '/experimental/interactivity-api/directives/wp-style.php';
+// require __DIR__ . '/experimental/interactivity-api/directives/wp-text.php';
+// require __DIR__ . '/experimental/interactivity-api/directives/wp-interactive.php';
 
 require __DIR__ . '/experimental/modules/class-gutenberg-modules.php';
 

@@ -1,12 +1,12 @@
 <?php
 /**
- * WP_Directive_Processor class
+ * Gutenberg_Interactivity_Directive_Processor class
  *
  * @package Gutenberg
  * @subpackage Interactivity API
  */
 
-if ( class_exists( 'WP_Directive_Processor' ) ) {
+if ( class_exists( 'Gutenberg_Interactivity_Directive_Processor' ) ) {
 	return;
 }
 
@@ -14,7 +14,7 @@ if ( class_exists( 'WP_Directive_Processor' ) ) {
  * This processor is built on top of the HTML Tag Processor and augments its
  * capabilities to process the Interactivity API directives.
  */
-class WP_Directive_Processor extends Gutenberg_HTML_Tag_Processor_6_5 {
+class Gutenberg_Interactivity_Directive_Processor extends Gutenberg_HTML_Tag_Processor_6_5 {
 	/**
 	 * String containing the current root block.
 	 *
