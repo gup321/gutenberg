@@ -25,6 +25,8 @@ class WP_Interactivity_API {
 
 	private $initial_state = array();
 
+	private $config = array();
+
 	public function initial_state( $store_namespace, $initial_state = null ) {
 		if ( ! isset( $this->initial_state[ $store_namespace ] ) ) {
 			$this->initial_state[ $store_namespace ] = array();
@@ -38,20 +40,26 @@ class WP_Interactivity_API {
 		return $this->initial_state[ $store_namespace ];
 	}
 
-	public function print_initial_state() {
+	public function print_client_interactivity_data() {
 		if ( ! empty( $this->initial_state ) ) {
 			wp_print_inline_script_tag(
-				wp_json_encode( $this->initial_state, JSON_HEX_TAG | JSON_HEX_AMP ),
+				wp_json_encode(
+					array(
+						'config'       => (object) $this->config,
+						'initialState' => (object) $this->initial_state,
+					),
+					JSON_HEX_TAG | JSON_HEX_AMP
+				),
 				array(
 					'type' => 'application/json',
-					'id'   => 'wp-interactivity-initial-state',
+					'id'   => 'wp-interactivity-data',
 				)
 			);
 		}
 	}
 
 	public function add_hooks() {
-		add_action( 'wp_footer', array( $this, 'print_initial_state' ), 8 );
+		add_action( 'wp_footer', array( $this, 'print_client_interactivity_data' ), 8 );
 	}
 
 	public function process_directives( $html ) {
@@ -123,6 +131,7 @@ class WP_Interactivity_API {
 				$directives_prefixes
 			);
 
+			// Executes the directive processors.
 			foreach ( $directives_prefixes as $directive_prefix ) {
 				call_user_func_array(
 					array( $this, self::$directive_processors[ $directive_prefix ] ),
@@ -131,19 +140,19 @@ class WP_Interactivity_API {
 			}
 		}
 
-		// If the HTML is unbalanced it's not safe to process and it returns the
-		// original content. The Interactivity API runtime will update the HTML on
-		// the client side during the hydration.
+		// It returns the original content if the HTML is unbalanced because it's
+		// not safe to process. In that case, the Interactivity API runtime will
+		// update the HTML on the client side during the hydration.
 		return $unbalanced || 0 < count( $tag_stack ) ? $html : $p->get_updated_html();
 	}
 
-	private function evaluate( $directive_value, $default_namespace, &$context_stack = array() ) {
+	private function evaluate( $directive_value, $default_namespace, $context ) {
 		// Extract the namespace from the directive attribute value.
 		list( $ns, $path ) = $this->parse_directive_value( $directive_value, $default_namespace );
 
 		$store = array(
-			'state'   => $this->initial_state[ $ns ],
-			'context' => end( $context_stack ),
+			'state'   => isset( $this->initial_state[ $ns ] ) ? $this->initial_state[ $ns ] : array(),
+			'context' => isset( $context[ $ns ] ) ? $context[ $ns ] : array(),
 		);
 
 		// Checks first if the reference path is preceded by a negator operator (!),
@@ -151,6 +160,7 @@ class WP_Interactivity_API {
 		$should_negate_value = '!' === $path[0];
 		$path                = $should_negate_value ? substr( $path, 1 ) : $path;
 
+		// Extracts the value from the store using the reference path.
 		$path_segments = explode( '.', $path );
 		$current       = $store;
 		foreach ( $path_segments as $p ) {
@@ -159,21 +169,6 @@ class WP_Interactivity_API {
 			} else {
 				return null;
 			}
-		}
-
-		// Checks if $current is an anonymous function or an arrow function, and if
-		// so, call it passing the store. Other types of callables are ignored on
-		// purpose, as arbitrary strings or arrays could be wrongly evaluated as
-		// "callables".
-		//
-		// E.g., "file" is an string and a "callable" (the "file" function exists).
-		if ( $current instanceof Closure ) {
-			/*
-			 * TODO: Figure out a way to implement derived state without having to
-			 * pass the store as argument:
-			 *
-			 * $current = call_user_func( $current );
-			 */
 		}
 
 		// Returns the opposite if it has a negator operator (!).
@@ -255,8 +250,34 @@ class WP_Interactivity_API {
 			}
 
 			$reference = $p->get_attribute( $attribute );
-			$value     = $this->evaluate( $reference, end( $namespace_stack ), $context_stack );
+			$value     = $this->evaluate( $reference, end( $namespace_stack ), end( $context_stack ) );
 			$p->set_attribute( $bound_attr, $value );
 		}
+	}
+
+	private function data_wp_context_processor( $p, &$context_stack, &$namespace_stack ) {
+		if ( $p->is_tag_closer() ) {
+			array_pop( $context_stack );
+			return;
+		}
+
+		$directive_value = $p->get_attribute( 'data-wp-context' );
+		$ns              = end( $namespace_stack );
+
+		// Separate namespace and value from the context directive attribute.
+		list( $ns, $data ) = is_string( $directive_value ) && ! empty( $directive_value )
+		? $this->parse_directive_value( $directive_value, $ns )
+		: array( $ns, null );
+
+		$context = ( end( $context_stack ) !== false ) ? end( $context_stack ) : array();
+
+		// Add parsed data to the context under the corresponding namespace.
+		array_push(
+			$context_stack,
+			array_replace_recursive(
+				$context,
+				array( $ns => is_array( $data ) ? $data : array() )
+			)
+		);
 	}
 }

@@ -104,20 +104,20 @@ class Tests_WP_Interactivity_API extends WP_UnitTestCase {
 	/**
 	 * Tests that the initial state is correctly printed on the client-side.
 	 *
-	 * @covers ::print_initial_state
+	 * @covers ::print_client_interactivity_data
 	 */
 	public function test_initial_state_is_correctly_printed() {
 		$this->interactivity->initial_state( 'myPlugin', array( 'a' => 1 ) );
 		$this->interactivity->initial_state( 'myPlugin', array( 'b' => 2 ) );
 		$this->interactivity->initial_state( 'otherPlugin', array( 'c' => 3 ) );
 
-		$initial_state_markup = get_echo( array( $this->interactivity, 'print_initial_state' ) );
+		$initial_state_markup = get_echo( array( $this->interactivity, 'print_client_interactivity_data' ) );
 		preg_match(
-			'/<script type="application\/json" id="wp-interactivity-initial-state">.*?(\{.*\}).*?<\/script>/s',
+			'/<script type="application\/json" id="wp-interactivity-data">.*?(\{.*\}).*?<\/script>/s',
 			$initial_state_markup,
 			$initial_state_string
 		);
-		$initial_state = json_decode( $initial_state_string[1], true );
+		$initial_state = json_decode( $initial_state_string[1], true )['initialState'];
 
 		$this->assertEquals(
 			array(
@@ -134,7 +134,7 @@ class Tests_WP_Interactivity_API extends WP_UnitTestCase {
 	/**
 	 * Tests that special characters in the initial state are properly escaped.
 	 *
-	 * @covers ::print_initial_state
+	 * @covers ::print_client_interactivity_data
 	 */
 	public function test_initial_state_escapes_special_characters() {
 		$this->interactivity->initial_state(
@@ -145,15 +145,15 @@ class Tests_WP_Interactivity_API extends WP_UnitTestCase {
 			)
 		);
 
-		$initial_state_markup = get_echo( array( $this->interactivity, 'print_initial_state' ) );
+		$initial_state_markup = get_echo( array( $this->interactivity, 'print_client_interactivity_data' ) );
 		preg_match(
-			'/<script type="application\/json" id="wp-interactivity-initial-state">.*?(\{.*\}).*?<\/script>/s',
+			'/<script type="application\/json" id="wp-interactivity-data">.*?(\{.*\}).*?<\/script>/s',
 			$initial_state_markup,
 			$initial_state_string
 		);
 
 		$this->assertEquals(
-			'{"myPlugin":{"amps":"http:\/\/site.test\/?foo=1\u0026baz=2\u0026bar=3","tags":"Do not do this: \u003C!-- \u003Cscript\u003E"}}',
+			'{"config":{},"initialState":{"myPlugin":{"amps":"http:\/\/site.test\/?foo=1\u0026baz=2\u0026bar=3","tags":"Do not do this: \u003C!-- \u003Cscript\u003E"}}}',
 			$initial_state_string[1]
 		);
 	}
@@ -226,7 +226,7 @@ class Tests_WP_Interactivity_API extends WP_UnitTestCase {
 	 */
 	public function test_process_directives_changes_html_with_balanced_tags() {
 		$this->interactivity->initial_state( 'myPlugin', array( 'id' => 'some-id' ) );
-		$html           = '<div data-wp-bind--id="myPlugin::state.id">Inner content here</div>';
+		$html           = '<div data-wp-bind--id="myPlugin::state.id">Inner content</div>';
 		$processed_html = $this->interactivity->process_directives( $html );
 		$p              = new WP_HTML_Tag_Processor( $processed_html );
 		$p->next_tag();
@@ -260,5 +260,109 @@ class Tests_WP_Interactivity_API extends WP_UnitTestCase {
 			$p->next_tag();
 			$this->assertNull( $p->get_attribute( 'id' ) );
 		}
+	}
+
+	/**
+	 * Invokes the private evaluate method of WP_Interactivity_API class.
+	 *
+	 * This method sets up a testing environment by initializing state and context
+	 * for 'myPlugin' and 'otherPlugin', and then invokes the private 'evaluate'
+	 * method using reflection.
+	 *
+	 * @param string $directive_value The directive attribute value to evaluate.
+	 * @return mixed The result of the evaluate method.
+	 */
+	private function invoke_evaluate( $directive_value ) {
+		$generate_state = function ( $name ) {
+			return array(
+				'key'    => $name,
+				'nested' => array( 'key' => $name . '-nested' ),
+			);
+		};
+		$this->interactivity->initial_state( 'myPlugin', $generate_state( 'myPlugin-state' ) );
+		$this->interactivity->initial_state( 'otherPlugin', $generate_state( 'otherPlugin-state' ) );
+		$context  = array(
+			'myPlugin'    => $generate_state( 'myPlugin-context' ),
+			'otherPlugin' => $generate_state( 'otherPlugin-context' ),
+		);
+		$evaluate = new ReflectionMethod( $this->interactivity, 'evaluate' );
+		$evaluate->setAccessible( true );
+		return $evaluate->invokeArgs( $this->interactivity, array( $directive_value, 'myPlugin', $context ) );
+	}
+
+	/**
+	 * Tests the evaluate method for basic value retrieval.
+	 *
+	 * @covers ::evaluate
+	 */
+	public function test_evaluate_value() {
+		$result = $this->invoke_evaluate( 'state.key' );
+		$this->assertEquals( 'myPlugin-state', $result );
+
+		$result = $this->invoke_evaluate( 'context.key' );
+		$this->assertEquals( 'myPlugin-context', $result );
+
+		$result = $this->invoke_evaluate( 'otherPlugin::state.key' );
+		$this->assertEquals( 'otherPlugin-state', $result );
+
+		$result = $this->invoke_evaluate( 'otherPlugin::context.key' );
+		$this->assertEquals( 'otherPlugin-context', $result );
+	}
+
+	/**
+	 * Tests the evaluate method with negation.
+	 *
+	 * @covers ::evaluate
+	 */
+	public function test_evaluate_value_negation() {
+		$result = $this->invoke_evaluate( '!state.key' );
+		$this->assertFalse( $result );
+
+		$result = $this->invoke_evaluate( '!context.key' );
+		$this->assertFalse( $result );
+
+		$result = $this->invoke_evaluate( 'otherPlugin::!state.key' );
+		$this->assertFalse( $result );
+
+		$result = $this->invoke_evaluate( 'otherPlugin::!context.key' );
+		$this->assertFalse( $result );
+	}
+
+	/**
+	 * Tests the evaluate method with non-existent paths.
+	 *
+	 * @covers ::evaluate
+	 */
+	public function test_evaluate_non_existent_path() {
+		$result = $this->invoke_evaluate( 'state.nonExistentKey' );
+		$this->assertNull( $result );
+
+		$result = $this->invoke_evaluate( 'context.nonExistentKey' );
+		$this->assertNull( $result );
+
+		$result = $this->invoke_evaluate( 'otherPlugin::state.nonExistentKey' );
+		$this->assertNull( $result );
+
+		$result = $this->invoke_evaluate( 'otherPlugin::context.nonExistentKey' );
+		$this->assertNull( $result );
+	}
+
+	/**
+	 * Tests the evaluate method for retrieving nested values.
+	 *
+	 * @covers ::evaluate
+	 */
+	public function test_evaluate_nested_value() {
+		$result = $this->invoke_evaluate( 'state.nested.key' );
+		$this->assertEquals( 'myPlugin-state-nested', $result );
+
+		$result = $this->invoke_evaluate( 'context.nested.key' );
+		$this->assertEquals( 'myPlugin-context-nested', $result );
+
+		$result = $this->invoke_evaluate( 'otherPlugin::state.nested.key' );
+		$this->assertEquals( 'otherPlugin-state-nested', $result );
+
+		$result = $this->invoke_evaluate( 'otherPlugin::context.nested.key' );
+		$this->assertEquals( 'otherPlugin-context-nested', $result );
 	}
 }
