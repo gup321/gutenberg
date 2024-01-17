@@ -131,9 +131,10 @@ class WP_Interactivity_API {
 			}
 		}
 
-		// If the HTML is unbalanced it can't be processed safely so it returns the
-		// original content.
-		return $unbalanced ? $html : $p->get_updated_html();
+		// If the HTML is unbalanced it's not safe to process and it returns the
+		// original content. The Interactivity API runtime will update the HTML on
+		// the client side during the hydration.
+		return $unbalanced || 0 < count( $tag_stack ) ? $html : $p->get_updated_html();
 	}
 
 	private function evaluate( $directive_value, $default_namespace, &$context_stack = array() ) {
@@ -254,7 +255,7 @@ class WP_Interactivity_API {
 			}
 
 			$reference = $p->get_attribute( $attribute );
-			$value     = $this->evaluate( $reference, $ns, $context_stack );
+			$value     = $this->evaluate( $reference, end( $namespace_stack ), $context_stack );
 			$p->set_attribute( $bound_attr, $value );
 		}
 	}

@@ -219,19 +219,18 @@ class Tests_WP_Interactivity_API extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Tests that the process_directives method doesn't change the HTML if it
-	 * doesn't contain directives.
+	 * Tests that the process_directives method changes the HTML if it contains
+	 * directives.
 	 *
 	 * @covers ::process_directives
 	 */
-	public function test_process_directives_works_with_bind() {
-		$this->markTestSkipped();
-		$this->interactivity->initial_state( 'myPlugin', array( 'text' => 'some text' ) );
-		$html           = '<div data-wp-class="myPlugin::state.text">Inner content here</div>';
+	public function test_process_directives_changes_html_with_balanced_tags() {
+		$this->interactivity->initial_state( 'myPlugin', array( 'id' => 'some-id' ) );
+		$html           = '<div data-wp-bind--id="myPlugin::state.id">Inner content here</div>';
 		$processed_html = $this->interactivity->process_directives( $html );
 		$p              = new WP_HTML_Tag_Processor( $processed_html );
 		$p->next_tag();
-		$this->assertEquals( 'some text', $p->get_attribute( 'class' ) );
+		$this->assertEquals( 'some-id', $p->get_attribute( 'id' ) );
 	}
 
 	/**
@@ -240,14 +239,26 @@ class Tests_WP_Interactivity_API extends WP_UnitTestCase {
 	 *
 	 * @covers ::process_directives
 	 */
-	public function test_process_directives_dont_process_if_contains_unbalanced_tags() {
-		$this->markTestSkipped();
-		$html           = '<div>Inner content here</div>';
-		$processed_html = $this->interactivity->process_directives( $html );
-		$this->assertEquals( $html, $processed_html );
+	public function test_process_directives_doesnt_change_html_if_contains_unbalanced_tags() {
+		$this->interactivity->initial_state( 'myPlugin', array( 'id' => 'some-id' ) );
 
-		$html           = '<div><span>Content</span><strong>More Content</strong></div>';
-		$processed_html = $this->interactivity->process_directives( $html );
-		$this->assertEquals( $html, $processed_html );
+		$html_samples = array(
+			'<div data-wp-bind--id="myPlugin::state.id">Inner content</div></div>',
+			'<div data-wp-bind--id="myPlugin::state.id">Inner content</div><div>',
+			'<div><div data-wp-bind--id="myPlugin::state.id">Inner content</div>',
+			'</div><div data-wp-bind--id="myPlugin::state.id">Inner content</div>',
+			'<div data-wp-bind--id="myPlugin::state.id">Inner<div>content</div>',
+			'<div data-wp-bind--id="myPlugin::state.id">Inner</div>content</div>',
+			'<div data-wp-bind--id="myPlugin::state.id"><span>Inner content</div>',
+			'<div data-wp-bind--id="myPlugin::state.id">Inner content</div></span>',
+			'<div data-wp-bind--id="myPlugin::state.id"><span>Inner content</div></span>',
+		);
+
+		foreach ( $html_samples as $html ) {
+			$processed_html = $this->interactivity->process_directives( $html );
+			$p              = new WP_HTML_Tag_Processor( $processed_html );
+			$p->next_tag();
+			$this->assertNull( $p->get_attribute( 'id' ) );
+		}
 	}
 }
