@@ -236,26 +236,33 @@ class WP_Interactivity_API {
 		return array( $default_namespace, $value );
 	}
 
-	private function data_wp_bind_processor( $p, &$context_stack, &$namespace_stack ) {
+	private function data_wp_interactive_processor( $p, &$context_stack, &$namespace_stack ) {
+		// Remove the last namespace from the stack if this is the closing tag.
 		if ( $p->is_tag_closer() ) {
+			array_pop( $namespace_stack );
 			return;
 		}
 
-		$prefixed_attributes = $p->get_attribute_names_with_prefix( 'data-wp-bind--' );
+		// Decode the data-wp-interactive attribute. In the case it is not a valid
+		// JSON string, `null` is stored in `$interactive_data`.
+		$interactive      = $p->get_attribute( 'data-wp-interactive' );
+		$interactive_data = is_string( $interactive ) && ! empty( $interactive )
+		? json_decode( $interactive, true )
+		: null;
 
-		foreach ( $prefixed_attributes as $attribute ) {
-			list( , $bound_attr ) = $this->extract_directive_prefix_and_suffix( $attribute );
-			if ( empty( $bound_attr ) ) {
-				continue;
-			}
-
-			$reference = $p->get_attribute( $attribute );
-			$value     = $this->evaluate( $reference, end( $namespace_stack ), end( $context_stack ) );
-			$p->set_attribute( $bound_attr, $value );
-		}
+		// Push the newly defined namespace, or the current one if the
+		// data-wp-interactive definition was invalid or does not contain a
+		// namespace. This is done because the function pops out the current
+		// namespace from the stack whenever it finds an island's closing tag,
+		// independently of whether the island definition was correct or it
+		// contained a valid namespace.
+		$namespace_stack[] = isset( $interactive_data['namespace'] )
+			? $interactive_data['namespace']
+			: end( $namespace_stack );
 	}
 
 	private function data_wp_context_processor( $p, &$context_stack, &$namespace_stack ) {
+		// Remove the last context from the stack if this is the closing tag.
 		if ( $p->is_tag_closer() ) {
 			array_pop( $context_stack );
 			return;
@@ -269,15 +276,50 @@ class WP_Interactivity_API {
 		? $this->parse_directive_value( $directive_value, $ns )
 		: array( $ns, null );
 
-		$context = ( end( $context_stack ) !== false ) ? end( $context_stack ) : array();
+		// If there is a proper namespace, we need to add a new context to the stack
+		// with the merge of the previous and new ones.
+		if ( is_string( $ns ) ) {
+			$context = ( end( $context_stack ) !== false ) ? end( $context_stack ) : array();
 
-		// Add parsed data to the context under the corresponding namespace.
-		array_push(
-			$context_stack,
-			array_replace_recursive(
-				$context,
-				array( $ns => is_array( $data ) ? $data : array() )
-			)
-		);
+			// Add parsed data to the context under the corresponding namespace.
+			array_push(
+				$context_stack,
+				array_replace_recursive(
+					$context,
+					array( $ns => is_array( $data ) ? $data : array() )
+				)
+			);
+		}
+	}
+
+	private function data_wp_bind_processor( $p, &$context_stack, &$namespace_stack ) {
+		if ( $p->is_tag_closer() ) {
+			return;
+		}
+
+		$prefixed_attributes = $p->get_attribute_names_with_prefix( 'data-wp-bind--' );
+
+		foreach ( $prefixed_attributes as $attribute ) {
+			list( , $bound_attribute ) = $this->extract_directive_prefix_and_suffix( $attribute );
+			if ( empty( $bound_attribute ) ) {
+				continue;
+			}
+
+			$reference = $p->get_attribute( $attribute );
+			$result    = $this->evaluate( $reference, end( $namespace_stack ), end( $context_stack ) );
+
+			if ( null !== $result && ( false !== $result || '-' === $bound_attribute[4] ) ) {
+				// If $result is a boolean and the attribute is `aria-` or `data-,
+				// convert it to a string "true" or "false". We follow the exact same
+				// logic than Preact here because we need to replicate what it does, but
+				// in the server: https://github.com/preactjs/preact/blob/ea49f7a0f9d1ff2c98c0bdd66aa0cbc583055246/src/diff/props.js#L131C24-L136
+				if ( is_bool( $result ) && '-' === $bound_attribute[4] ) {
+					$result = $result ? 'true' : 'false';
+				}
+				$p->set_attribute( $bound_attribute, $result );
+			} else {
+				$p->remove_attribute( $bound_attribute );
+			}
+		}
 	}
 }
