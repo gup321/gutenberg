@@ -293,32 +293,44 @@ class WP_Interactivity_API {
 	}
 
 	private function data_wp_bind_processor( $p, &$context_stack, &$namespace_stack ) {
-		if ( $p->is_tag_closer() ) {
-			return;
-		}
+		if ( ! $p->is_tag_closer() ) {
+			$prefixed_attributes = $p->get_attribute_names_with_prefix( 'data-wp-bind--' );
 
-		$prefixed_attributes = $p->get_attribute_names_with_prefix( 'data-wp-bind--' );
-
-		foreach ( $prefixed_attributes as $attribute ) {
-			list( , $bound_attribute ) = $this->extract_directive_prefix_and_suffix( $attribute );
-			if ( empty( $bound_attribute ) ) {
-				continue;
-			}
-
-			$reference = $p->get_attribute( $attribute );
-			$result    = $this->evaluate( $reference, end( $namespace_stack ), end( $context_stack ) );
-
-			if ( null !== $result && ( false !== $result || '-' === $bound_attribute[4] ) ) {
-				// If $result is a boolean and the attribute is `aria-` or `data-,
-				// convert it to a string "true" or "false". We follow the exact same
-				// logic than Preact here because we need to replicate what it does, but
-				// in the server: https://github.com/preactjs/preact/blob/ea49f7a0f9d1ff2c98c0bdd66aa0cbc583055246/src/diff/props.js#L131C24-L136
-				if ( is_bool( $result ) && '-' === $bound_attribute[4] ) {
-					$result = $result ? 'true' : 'false';
+			foreach ( $prefixed_attributes as $attribute ) {
+				list( , $bound_attribute ) = $this->extract_directive_prefix_and_suffix( $attribute );
+				if ( empty( $bound_attribute ) ) {
+					continue;
 				}
-				$p->set_attribute( $bound_attribute, $result );
+
+				$value  = $p->get_attribute( $attribute );
+				$result = $this->evaluate( $value, end( $namespace_stack ), end( $context_stack ) );
+
+				if ( null !== $result && ( false !== $result || '-' === $bound_attribute[4] ) ) {
+					// If $result is a boolean and the attribute is `aria-` or `data-,
+					// convert it to a string "true" or "false". We follow the exact same
+					// logic than Preact here because we need to replicate what it does, but
+					// in the server: https://github.com/preactjs/preact/blob/ea49f7a0f9d1ff2c98c0bdd66aa0cbc583055246/src/diff/props.js#L131C24-L136
+					if ( is_bool( $result ) && '-' === $bound_attribute[4] ) {
+						$result = $result ? 'true' : 'false';
+					}
+					$p->set_attribute( $bound_attribute, $result );
+				} else {
+					$p->remove_attribute( $bound_attribute );
+				}
+			}
+		}
+	}
+
+	private function data_wp_text_processor( $p, &$context_stack, &$namespace_stack ) {
+		if ( ! $p->is_tag_closer() ) {
+			// Follows the same logic as Preact and only changes the content if the
+			// value is a string or a number. Otherwise, it removes the content.
+			$value  = $p->get_attribute( 'data-wp-text' );
+			$result = $this->evaluate( $value, end( $namespace_stack ), end( $context_stack ) );
+			if ( is_string( $result ) || is_numeric( $result ) ) {
+				$p->set_content_between_balanced_tags( esc_html( $result ) );
 			} else {
-				$p->remove_attribute( $bound_attribute );
+				$p->set_content_between_balanced_tags( '' );
 			}
 		}
 	}

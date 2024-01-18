@@ -46,8 +46,7 @@ class WP_Interactivity_API_Directives_Processor extends Gutenberg_HTML_Tag_Proce
 	 * When called on an opening tag, set the HTML content found between that
 	 * opening tag and its matching closing tag.
 	 *
-	 * @param string $new_html The string to replace the content between the
-	 * matching tags with.
+	 * @param string $new_html The string to replace the content between the matching tags with.
 	 * @return bool            Whether the content was successfully replaced.
 	 */
 	public function set_content_between_balanced_tags( $new_html ) {
