@@ -9,6 +9,7 @@ import { privateApis as routerPrivateApis } from '@wordpress/router';
 import PagePatterns from '../page-patterns';
 import DataviewsPatterns from '../page-patterns/dataviews-patterns';
 import PageTemplateParts from '../page-template-parts';
+import DataviewsTemplateParts from '../page-template-parts/dataviews-template-parts';
 import PageTemplates from '../page-templates';
 import PagePages from '../page-pages';
 import { unlock } from '../../lock-unlock';
@@ -23,7 +24,11 @@ export default function PageMain() {
 	if ( path === '/wp_template/all' ) {
 		return <PageTemplates />;
 	} else if ( path === '/wp_template_part/all' ) {
-		return <PageTemplateParts />;
+		return window?.__experimentalAdminViews ? (
+			<DataviewsTemplateParts />
+		) : (
+			<PageTemplateParts />
+		);
 	} else if ( path === '/patterns' ) {
 		return window?.__experimentalAdminViews ? (
 			<DataviewsPatterns />
